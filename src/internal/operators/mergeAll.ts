@@ -50,13 +50,13 @@ export function mergeAll<T>(concurrent?: number): OperatorFunction<ObservableInp
  * @see {@link switchMap}
  * @see {@link zipAll}
  *
- * @param {number} [concurrent=Number.POSITIVE_INFINITY] Maximum number of inner
+ * @param {number} [concurrent] Maximum number of inner
  * Observables being subscribed to concurrently.
  * @return {Observable} An Observable that emits values coming from all the
  * inner Observables emitted by the source Observable.
  * @method mergeAll
  * @owner Observable
  */
-export function mergeAll<T>(concurrent: number = Number.POSITIVE_INFINITY): MonoTypeOperatorFunction<T> {
+export function mergeAll<T>(concurrent?: number): MonoTypeOperatorFunction<T> {
   return mergeMap<T, T>(identity as (value: T, index: number) => ObservableInput<T>, concurrent);
 }

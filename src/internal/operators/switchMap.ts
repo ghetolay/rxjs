@@ -8,6 +8,13 @@ import { subscribeToResult } from '../util/subscribeToResult';
 import { ObservableInput, OperatorFunction } from '../types';
 import { map } from './map';
 import { from } from '../observable/from';
+import { awesomeFlatMap } from './awesomeFlatMap';
+import { ConcurrentFifoQueueStrategy, FlattenStrategy } from '../FlattenStrategy';
+
+const switchStrategy: FlattenStrategy<any> = {
+  onNewItem: (item: any, actives: any[]) => [item, actives.length - 1],
+  onSubComplete: () => undefined,
+};
 
 /* tslint:disable:max-line-length */
 export function switchMap<T, R>(project: (value: T, index: number) => ObservableInput<R>): OperatorFunction<T, R>;
@@ -70,74 +77,6 @@ export function switchMap<T, I, R>(
       ))
     );
   }
-  return (source: Observable<T>) => source.lift(new SwitchMapOperator(project));
-}
 
-class SwitchMapOperator<T, R> implements Operator<T, R> {
-  constructor(private project: (value: T, index: number) => ObservableInput<R>) {
-  }
-
-  call(subscriber: Subscriber<R>, source: any): any {
-    return source.subscribe(new SwitchMapSubscriber(subscriber, this.project));
-  }
-}
-
-/**
- * We need this JSDoc comment for affecting ESDoc.
- * @ignore
- * @extends {Ignored}
- */
-class SwitchMapSubscriber<T, R> extends OuterSubscriber<T, R> {
-  private index: number = 0;
-  private innerSubscription: Subscription;
-
-  constructor(destination: Subscriber<R>,
-              private project: (value: T, index: number) => ObservableInput<R>) {
-    super(destination);
-  }
-
-  protected _next(value: T) {
-    let result: ObservableInput<R>;
-    const index = this.index++;
-    try {
-      result = this.project(value, index);
-    } catch (error) {
-      this.destination.error(error);
-      return;
-    }
-    this._innerSub(result, value, index);
-  }
-
-  private _innerSub(result: ObservableInput<R>, value: T, index: number) {
-    const innerSubscription = this.innerSubscription;
-    if (innerSubscription) {
-      innerSubscription.unsubscribe();
-    }
-    this.add(this.innerSubscription = subscribeToResult(this, result, value, index));
-  }
-
-  protected _complete(): void {
-    const {innerSubscription} = this;
-    if (!innerSubscription || innerSubscription.closed) {
-      super._complete();
-    }
-  }
-
-  protected _unsubscribe() {
-    this.innerSubscription = null;
-  }
-
-  notifyComplete(innerSub: Subscription): void {
-    this.remove(innerSub);
-    this.innerSubscription = null;
-    if (this.isStopped) {
-      super._complete();
-    }
-  }
-
-  notifyNext(outerValue: T, innerValue: R,
-             outerIndex: number, innerIndex: number,
-             innerSub: InnerSubscriber<T, R>): void {
-      this.destination.next(innerValue);
-  }
+  return awesomeFlatMap(project, () => switchStrategy);
 }

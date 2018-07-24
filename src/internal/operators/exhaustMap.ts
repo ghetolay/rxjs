@@ -8,6 +8,13 @@ import { subscribeToResult } from '../util/subscribeToResult';
 import { ObservableInput, OperatorFunction } from '../types';
 import { map } from './map';
 import { from } from '../observable/from';
+import { awesomeFlatMap } from './awesomeFlatMap';
+import { ConcurrentFifoQueueStrategy, FlattenStrategy } from '../FlattenStrategy';
+
+const exhaustStrategy: FlattenStrategy<any> = {
+  onNewItem: (item: any, actives: any[]) => actives.length > 0 ? undefined : item,
+  onSubComplete: () => undefined,
+};
 
 /* tslint:disable:max-line-length */
 export function exhaustMap<T, R>(project: (value: T, index: number) => ObservableInput<R>): OperatorFunction<T, R>;
@@ -71,75 +78,6 @@ export function exhaustMap<T, I, R>(
       )),
     );
   }
-  return (source: Observable<T>) =>
-    source.lift(new ExhauseMapOperator(project));
-}
 
-class ExhauseMapOperator<T, R> implements Operator<T, R> {
-  constructor(private project: (value: T, index: number) => ObservableInput<R>) {
-  }
-
-  call(subscriber: Subscriber<R>, source: any): any {
-    return source.subscribe(new ExhaustMapSubscriber(subscriber, this.project));
-  }
-}
-
-/**
- * We need this JSDoc comment for affecting ESDoc.
- * @ignore
- * @extends {Ignored}
- */
-class ExhaustMapSubscriber<T, R> extends OuterSubscriber<T, R> {
-  private hasSubscription = false;
-  private hasCompleted = false;
-  private index = 0;
-
-  constructor(destination: Subscriber<R>,
-              private project: (value: T, index: number) => ObservableInput<R>) {
-    super(destination);
-  }
-
-  protected _next(value: T): void {
-    if (!this.hasSubscription) {
-      this.tryNext(value);
-    }
-  }
-
-  private tryNext(value: T): void {
-    const index = this.index++;
-    const destination = this.destination;
-    try {
-      const result = this.project(value, index);
-      this.hasSubscription = true;
-      this.add(subscribeToResult(this, result, value, index));
-    } catch (err) {
-      destination.error(err);
-    }
-  }
-
-  protected _complete(): void {
-    this.hasCompleted = true;
-    if (!this.hasSubscription) {
-      this.destination.complete();
-    }
-  }
-
-  notifyNext(outerValue: T, innerValue: R,
-             outerIndex: number, innerIndex: number,
-             innerSub: InnerSubscriber<T, R>): void {
-    this.destination.next(innerValue);
-  }
-
-  notifyError(err: any): void {
-    this.destination.error(err);
-  }
-
-  notifyComplete(innerSub: Subscription): void {
-    this.remove(innerSub);
-
-    this.hasSubscription = false;
-    if (this.hasCompleted) {
-      this.destination.complete();
-    }
-  }
+  return awesomeFlatMap(project, () => exhaustStrategy);
 }
